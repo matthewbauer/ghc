@@ -248,6 +248,7 @@ data THMessage a where
 
   StartRecover :: THMessage ()
   EndRecover :: Bool -> THMessage ()
+  FailIfErrs :: THMessage (THResult ())
 
   -- | Indicates that this RunTH is finished, and the next message
   -- will be the result of RunTH (a QResult).
@@ -277,9 +278,10 @@ getTHMessage = do
     13 -> THMsg <$> return ExtsEnabled
     14 -> THMsg <$> return StartRecover
     15 -> THMsg <$> EndRecover <$> get
-    16 -> return (THMsg RunTHDone)
-    17 -> THMsg <$> AddModFinalizer <$> get
-    18 -> THMsg <$> (AddForeignFile <$> get <*> get)
+    16 -> THMsg <$> return FailIfErrs
+    17 -> return (THMsg RunTHDone)
+    18 -> THMsg <$> AddModFinalizer <$> get
+    19 -> THMsg <$> (AddForeignFile <$> get <*> get)
     _  -> THMsg <$> AddCorePlugin <$> get
 
 putTHMessage :: THMessage a -> Put
@@ -300,10 +302,11 @@ putTHMessage m = case m of
   ExtsEnabled                 -> putWord8 13
   StartRecover                -> putWord8 14
   EndRecover a                -> putWord8 15 >> put a
-  RunTHDone                   -> putWord8 16
-  AddModFinalizer a           -> putWord8 17 >> put a
-  AddForeignFile lang a       -> putWord8 18 >> put lang >> put a
-  AddCorePlugin a             -> putWord8 19 >> put a
+  FailIfErrs                  -> putWord8 16
+  RunTHDone                   -> putWord8 17
+  AddModFinalizer a           -> putWord8 18 >> put a
+  AddForeignFile lang a       -> putWord8 19 >> put lang >> put a
+  AddCorePlugin a             -> putWord8 20 >> put a
 
 
 data EvalOpts = EvalOpts
