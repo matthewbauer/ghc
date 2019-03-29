@@ -42,7 +42,9 @@ module Type (
         mkSpecForAllTy, mkSpecForAllTys,
         mkVisForAllTys, mkTyCoInvForAllTy,
         mkInvForAllTy, mkInvForAllTys,
-        splitForAllTys, splitForAllTysSameVis, splitForAllVarBndrs,
+        splitForAllTys, splitForAllTysSameVis,
+        splitForAllTysExactVis,
+        splitForAllVarBndrs,
         splitForAllTy_maybe, splitForAllTy,
         splitForAllTy_ty_maybe, splitForAllTy_co_maybe,
         splitPiTy_maybe, splitPiTy, splitPiTys,
@@ -1465,6 +1467,14 @@ splitForAllTysSameVis supplied_argf ty = split ty ty []
     split orig_ty ty tvs | Just ty' <- coreView ty = split orig_ty ty' tvs
     split _       (ForAllTy (Bndr tv argf) ty) tvs
       | argf `sameVis` supplied_argf               = split ty ty (tv:tvs)
+    split orig_ty _                            tvs = (reverse tvs, orig_ty)
+
+splitForAllTysExactVis :: ArgFlag -> Type -> ([TyCoVar], Type)
+splitForAllTysExactVis supplied_argf ty = split ty ty []
+  where
+    split orig_ty ty tvs | Just ty' <- coreView ty = split orig_ty ty' tvs
+    split _       (ForAllTy (Bndr tv argf) ty) tvs
+      | argf == supplied_argf                     = split ty ty (tv:tvs)
     split orig_ty _                            tvs = (reverse tvs, orig_ty)
 
 -- | Like splitForAllTys, but split only for tyvars.

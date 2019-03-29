@@ -36,6 +36,7 @@ module TcHsType (
         -- Kind-checking types
         -- No kind generalisation, no checkValidType
         kcLHsQTyVars,
+        kcLHsQTyVars_Cusk,
         tcWildCardBinders,
         tcHsLiftedType,   tcHsOpenType,
         tcHsLiftedTypeNC, tcHsOpenTypeNC,
@@ -1750,7 +1751,6 @@ It has two cases:
    partial type signature), so we infer the type and generalise.
 -}
 
-
 ------------------------------
 -- | Kind-check a 'LHsQTyVars'. If the decl under consideration has a complete,
 -- user-supplied kind signature (CUSK), generalise the result.
@@ -2188,11 +2188,12 @@ bindTyClTyVars :: Name
 -- but not in the initial-kind run.
 bindTyClTyVars tycon_name thing_inside
   = do { tycon <- kcLookupTcTyCon tycon_name
-       ; let scoped_prs = tcTyConScopedTyVars tycon
+       ; let header_prs = tcTyConHeaderKiVars tycon
+             scoped_prs = tcTyConScopedTyVars tycon
              res_kind   = tyConResKind tycon
              binders    = tyConBinders tycon
-       ; traceTc "bindTyClTyVars" (ppr tycon_name <+> ppr binders $$ ppr scoped_prs)
-       ; tcExtendNameTyVarEnv scoped_prs $
+       ; traceTc "bindTyClTyVars" (ppr tycon_name <+> ppr binders $$ ppr header_prs $$ ppr scoped_prs)
+       ; tcExtendNameTyVarEnv (header_prs ++ scoped_prs) $
          thing_inside binders res_kind }
 
 -- getInitialKind has made a suitably-shaped kind for the type or class

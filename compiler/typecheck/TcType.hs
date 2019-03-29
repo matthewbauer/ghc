@@ -60,6 +60,7 @@ module TcType (
   getTyVar,
   tcSplitForAllTy_maybe,
   tcSplitForAllTys, tcSplitForAllTysSameVis,
+  tcSplitForAllTysExactVis,
   tcSplitPiTys, tcSplitPiTy_maybe, tcSplitForAllVarBndrs,
   tcSplitPhiTy, tcSplitPredFunTy_maybe,
   tcSplitFunTy_maybe, tcSplitFunTys, tcFunArgTy, tcFunResultTy, tcFunResultTyN,
@@ -591,6 +592,7 @@ data UserTypeCtxt
   | InfSigCtxt Name     -- Inferred type for function
   | ExprSigCtxt         -- Expression type signature
   | KindSigCtxt         -- Kind signature
+  | TopKindSigCtxt Name -- Top-level kind signature
   | TypeAppCtxt         -- Visible type application
   | ConArgCtxt Name     -- Data constructor argument
   | TySynCtxt Name      -- RHS of a type synonym decl
@@ -648,6 +650,7 @@ pprUserTypeCtxt (InfSigCtxt n)    = text "the inferred type for" <+> quotes (ppr
 pprUserTypeCtxt (RuleSigCtxt n)   = text "a RULE for" <+> quotes (ppr n)
 pprUserTypeCtxt ExprSigCtxt       = text "an expression type signature"
 pprUserTypeCtxt KindSigCtxt       = text "a kind signature"
+pprUserTypeCtxt (TopKindSigCtxt n) = text "a top-level kind signature for" <+> quotes (ppr n)
 pprUserTypeCtxt TypeAppCtxt       = text "a type argument"
 pprUserTypeCtxt (ConArgCtxt c)    = text "the type of the constructor" <+> quotes (ppr c)
 pprUserTypeCtxt (TySynCtxt c)     = text "the RHS of the type synonym" <+> quotes (ppr c)
@@ -1363,6 +1366,10 @@ tcSplitForAllTys ty
 tcSplitForAllTysSameVis :: ArgFlag -> Type -> ([TyVar], Type)
 tcSplitForAllTysSameVis supplied_argf ty = ASSERT( all isTyVar (fst sty) ) sty
   where sty = splitForAllTysSameVis supplied_argf ty
+
+tcSplitForAllTysExactVis :: ArgFlag -> Type -> ([TyVar], Type)
+tcSplitForAllTysExactVis supplied_argf ty = ASSERT( all isTyVar (fst sty) ) sty
+  where sty = splitForAllTysExactVis supplied_argf ty
 
 -- | Like 'tcSplitForAllTys', but splits off only named binders.
 tcSplitForAllVarBndrs :: Type -> ([TyVarBinder], Type)

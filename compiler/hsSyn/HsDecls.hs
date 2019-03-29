@@ -24,7 +24,7 @@ module HsDecls (
   -- ** Class or type declarations
   TyClDecl(..), LTyClDecl, DataDeclRn(..),
   TyClGroup(..), mkTyClGroup, emptyTyClGroup,
-  tyClGroupTyClDecls, tyClGroupInstDecls, tyClGroupRoleDecls,
+  tyClGroupTyClDecls, tyClGroupInstDecls, tyClGroupRoleDecls, tyClGroupTLKSs,
   isClassDecl, isDataDecl, isSynDecl, tcdName,
   isFamilyDecl, isTypeFamilyDecl, isDataFamilyDecl,
   isOpenTypeFamilyInfo, isClosedTypeFamilyInfo,
@@ -32,6 +32,7 @@ module HsDecls (
   countTyClDecls, pprTyClDeclFlavour,
   tyClDeclLName, tyClDeclTyVars,
   hsDeclHasCusk, famDeclHasCusk,
+  famResultKindSignature,
   FamilyDecl(..), LFamilyDecl,
 
   -- ** Instance declarations
@@ -111,6 +112,7 @@ import Type
 import Bag
 import Maybes
 import Data.Data        hiding (TyCon,Fixity, Infix)
+import Data.Void
 
 {-
 ************************************************************************
@@ -302,6 +304,7 @@ instance (p ~ GhcPass pass, OutputableBndrId p) => Outputable (HsGroup p) where
              if isEmptyValBinds val_decls
                 then Nothing
                 else Just (ppr val_decls),
+             ppr_ds (tyClGroupTLKSs tycl_decls),
              ppr_ds (tyClGroupTyClDecls tycl_decls),
              ppr_ds (tyClGroupInstDecls tycl_decls),
              ppr_ds deriv_decls,
@@ -739,10 +742,13 @@ instance (p ~ GhcPass pass, OutputableBndrId p)
        => Outputable (TyClGroup p) where
   ppr (TyClGroup { group_tyclds = tyclds
                  , group_roles = roles
+                 , group_tlkss = tlkss
                  , group_instds = instds
                  }
       )
-    = ppr tyclds $$
+    = hang (text "TyClGroup") 2 $
+      ppr tlkss $$
+      ppr tyclds $$
       ppr roles $$
       ppr instds
   ppr (XTyClGroup x) = ppr x
@@ -775,7 +781,7 @@ pprTyClDeclFlavour (SynDecl {})     = text "type"
 pprTyClDeclFlavour (FamDecl { tcdFam = FamilyDecl { fdInfo = info }})
   = pprFlavour info <+> text "family"
 pprTyClDeclFlavour (FamDecl { tcdFam = XFamilyDecl x})
-  = ppr x
+  = absurd x
 pprTyClDeclFlavour (DataDecl { tcdDataDefn = HsDataDefn { dd_ND = nd } })
   = ppr nd
 pprTyClDeclFlavour (DataDecl { tcdDataDefn = XHsDataDefn x })
@@ -903,6 +909,7 @@ data TyClGroup pass  -- See Note [TyClGroups and dependency analysis]
   = TyClGroup { group_ext    :: XCTyClGroup pass
               , group_tyclds :: [LTyClDecl pass]
               , group_roles  :: [LRoleAnnotDecl pass]
+              , group_tlkss  :: [LTopKindSig pass]
               , group_instds :: [LInstDecl pass] }
   | XTyClGroup (XXTyClGroup pass)
 
@@ -911,7 +918,7 @@ type instance XXTyClGroup (GhcPass _) = NoExt
 
 
 emptyTyClGroup :: TyClGroup (GhcPass p)
-emptyTyClGroup = TyClGroup noExt [] [] []
+emptyTyClGroup = TyClGroup noExt [] [] [] []
 
 tyClGroupTyClDecls :: [TyClGroup pass] -> [LTyClDecl pass]
 tyClGroupTyClDecls = concatMap group_tyclds
@@ -922,11 +929,15 @@ tyClGroupInstDecls = concatMap group_instds
 tyClGroupRoleDecls :: [TyClGroup pass] -> [LRoleAnnotDecl pass]
 tyClGroupRoleDecls = concatMap group_roles
 
+tyClGroupTLKSs :: [TyClGroup pass] -> [LTopKindSig pass]
+tyClGroupTLKSs = concatMap group_tlkss
+
 mkTyClGroup :: [LTyClDecl (GhcPass p)] -> [LInstDecl (GhcPass p)]
             -> TyClGroup (GhcPass p)
 mkTyClGroup decls instds = TyClGroup
   { group_ext = noExt
   , group_tyclds = decls
+  , group_tlkss = []
   , group_roles = []
   , group_instds = instds
   }
@@ -1030,7 +1041,7 @@ data FamilyResultSig pass = -- see Note [FamilyResultSig]
 type instance XNoSig            (GhcPass _) = NoExt
 type instance XCKindSig         (GhcPass _) = NoExt
 type instance XTyVarSig         (GhcPass _) = NoExt
-type instance XXFamilyResultSig (GhcPass _) = NoExt
+type instance XXFamilyResultSig (GhcPass _) = Void
 
 
 -- | Located type Family Declaration
@@ -1058,7 +1069,7 @@ data FamilyDecl pass = FamilyDecl
   -- For details on above see note [Api annotations] in ApiAnnotation
 
 type instance XCFamilyDecl    (GhcPass _) = NoExt
-type instance XXFamilyDecl    (GhcPass _) = NoExt
+type instance XXFamilyDecl    (GhcPass _) = Void
 
 
 -- | Located Injectivity Annotation
@@ -1091,7 +1102,7 @@ data FamilyInfo pass
 famDeclHasCusk :: Bool -- ^ True <=> the -XCUSKs extension is enabled
                -> Bool -- ^ True <=> this is an associated type family,
                        --            and the parent class has /no/ CUSK
-               -> FamilyDecl pass
+               -> FamilyDecl (GhcPass p)
                -> Bool
 famDeclHasCusk _cusks_enabled@False _ _ = False
 famDeclHasCusk _cusks_enabled@True assoc_with_no_cusk
@@ -1105,13 +1116,21 @@ famDeclHasCusk _cusks_enabled@True assoc_with_no_cusk
             -- Un-associated open type/data families have CUSKs
             -- Associated type families have CUSKs iff the parent class does
 
-famDeclHasCusk _ _ (XFamilyDecl {}) = panic "famDeclHasCusk"
+famDeclHasCusk _ _ (XFamilyDecl x) = absurd x
 
 -- | Does this family declaration have user-supplied return kind signature?
-hasReturnKindSignature :: FamilyResultSig a -> Bool
-hasReturnKindSignature (NoSig _)                        = False
-hasReturnKindSignature (TyVarSig _ (L _ (UserTyVar{}))) = False
-hasReturnKindSignature _                                = True
+hasReturnKindSignature :: FamilyResultSig (GhcPass p) -> Bool
+hasReturnKindSignature = isJust . famResultKindSignature
+
+famResultKindSignature :: FamilyResultSig (GhcPass p) -> Maybe (LHsKind (GhcPass p))
+famResultKindSignature (NoSig _) = Nothing
+famResultKindSignature (KindSig _ ki) = Just ki
+famResultKindSignature (TyVarSig _ bndr) =
+  case unLoc bndr of
+    UserTyVar _ _ -> Nothing
+    KindedTyVar _ _ ki -> Just ki
+    XTyVarBndr x -> absurd x
+famResultKindSignature (XFamilyResultSig x) = absurd x
 
 -- | Maybe return name of the result type variable
 resultVariableName :: FamilyResultSig a -> Maybe (IdP a)
@@ -1142,7 +1161,7 @@ pprFamilyDecl top_level (FamilyDecl { fdInfo = info, fdLName = ltycon
                 NoSig    _         -> empty
                 KindSig  _ kind    -> dcolon <+> ppr kind
                 TyVarSig _ tv_bndr -> text "=" <+> ppr tv_bndr
-                XFamilyResultSig x -> ppr x
+                XFamilyResultSig x -> absurd x
     pp_inj = case mb_inj of
                Just (L _ (InjectivityAnn lhs rhs)) ->
                  hsep [ vbar, ppr lhs, text "->", hsep (map ppr rhs) ]
@@ -1154,7 +1173,7 @@ pprFamilyDecl top_level (FamilyDecl { fdInfo = info, fdLName = ltycon
             Nothing   -> text ".."
             Just eqns -> vcat $ map (ppr_fam_inst_eqn . unLoc) eqns )
       _ -> (empty, empty)
-pprFamilyDecl _ (XFamilyDecl x) = ppr x
+pprFamilyDecl _ (XFamilyDecl x) = absurd x
 
 pprFlavour :: FamilyInfo pass -> SDoc
 pprFlavour DataFamily            = text "data"
