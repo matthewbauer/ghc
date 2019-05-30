@@ -171,7 +171,7 @@ $(GHC_STAGE2) : $(foreach w,$(GhcLibWays),libraries/base/dist-install/build/GHC/
 
 endif
 
-INSTALL_LIBS += settings
+INSTALL_LIBS += $(includes_SETTINGS)
 INSTALL_LIBS += llvm-targets
 INSTALL_LIBS += llvm-passes
 
