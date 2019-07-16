@@ -1769,6 +1769,7 @@ linkBinary' staticLink dflags o_files dep_packages = do
 
                       -- See Note [No PIE when linking]
                       ++ picCCOpts dflags
+                      ++ pieLDOpts dflags
 
                       -- Permit the linker to auto link _symbol to _imp_symbol.
                       -- This lets us link against DLLs without needing an "import library".

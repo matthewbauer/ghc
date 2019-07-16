@@ -199,6 +199,7 @@ module DynFlags (
 
         -- ** DynFlags C compiler options
         picCCOpts, picPOpts,
+        pieLDOpts,
 
         -- * Compiler configuration suitable for display to the user
         compilerInfo,
@@ -5592,9 +5593,7 @@ setOptHpcDir arg  = upd $ \ d -> d {hpcDir = arg}
 -- platform.
 
 picCCOpts :: DynFlags -> [String]
-picCCOpts dflags = pieOpts ++ picOpts
-  where
-    picOpts =
+picCCOpts dflags =
       case platformOS (targetPlatform dflags) of
       OSDarwin
           -- Apple prefers to do things the other way round.
@@ -5622,7 +5621,8 @@ picCCOpts dflags = pieOpts ++ picOpts
       -- explicit here, see #15847
        | otherwise -> ["-fno-PIC"]
 
-    pieOpts
+pieLDOpts :: DynFlags -> [String]
+pieLDOpts dflags
       | gopt Opt_PICExecutable dflags       = ["-pie"]
         -- See Note [No PIE when linking]
       | toolSettings_ccSupportsNoPie (toolSettings dflags) = ["-no-pie"]
